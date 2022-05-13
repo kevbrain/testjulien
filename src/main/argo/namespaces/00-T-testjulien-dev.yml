@@ -1,0 +1,11 @@
+apiVersion: triggers.tekton.dev/v1alpha1
+kind: Trigger
+metadata:
+  name: testjulien-dev-trigger
+  namespace: testjulien-dev
+spec:
+  serviceAccountName: pipeline
+  bindings:
+    - ref: testjulien-dev-triggerbinding
+  template:
+    ref: testjulien-dev-triggertemplate

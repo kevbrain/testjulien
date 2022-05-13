@@ -1,0 +1,12 @@
+kind: Secret
+apiVersion: v1
+metadata:
+  namespace: {{ocp-namespace}}
+  name: testjulien-secret-0
+  labels:
+    app: testjulien    
+stringData:  
+  actuator.password: {{actuator.password}}
+type: Opaque
+---
+ 

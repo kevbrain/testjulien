@@ -1,0 +1,284 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  namespace: {{ocp-namespace}}
+  name: testjulien-cm-0
+  labels:
+    app: testjulien
+data: 
+  app-actuator.port: "{{app-actuator.port}}"
+  app-container.port: "{{app-container.port}}"
+  app-limit.cpu: "{{app-limit.cpu}}"
+  app-limit.memory: "{{app-limit.memory}}"
+  app-request.cpu: "{{app-request.cpu}}"
+  app-request.memory: "{{app-request.memory}}"
+  app-version: "{{app-version}}"
+  cluster-suffix: "{{cluster-suffix}}"
+  ocp.environment: "{{ocp.environment}}"
+  ocp.replicas: "{{ocp.replicas}}"
+  ocp-cluster.registry: "{{ocp-cluster.registry}}"
+  ocp-namespace: "{{ocp-namespace}}"
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  namespace: {{ocp-namespace}}
+  name: testjulien-cm-1
+  labels:
+    app: testjulien
+data:
+  aml-integration-context.xml: >-
+    <?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:int="http://www.springframework.org/schema/integration"
+       xmlns:int-sftp="http://www.springframework.org/schema/integration/sftp"
+       xmlns:int-file="http://www.springframework.org/schema/integration/file"
+       xmlns:int-jpa="http://www.springframework.org/schema/integration/jpa"
+       xmlns:int-http="http://www.springframework.org/schema/integration/http"
+       xmlns:util="http://www.springframework.org/schema/util"
+       xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:int-jms="http://www.springframework.org/schema/integration/jms"
+       xmlns:int-kafka="http://www.springframework.org/schema/integration/kafka"
+       xmlns:task="http://www.springframework.org/schema/task"
+       xsi:schemaLocation=" http://www.springframework.org/schema/beans ./xsd/spring-beans.xsd
+				            http://www.springframework.org/schema/context ./xsd/spring-context.xsd
+				            http://www.springframework.org/schema/integration ./xsd/spring-integration.xsd
+				            http://www.springframework.org/schema/integration/sftp ./xsd/spring-integration-sftp-2.0.xsd
+				            http://www.springframework.org/schema/integration/jpa ./xsd/spring-integration-jpa.xsd
+				            http://www.springframework.org/schema/integration/file ./xsd/spring-integration-file.xsd
+				            http://www.springframework.org/schema/integration/http ./xsd/spring-integration-http.xsd
+							http://www.springframework.org/schema/util ./xsd/spring-util.xsd
+							http://www.springframework.org/schema/integration/jms ./xsd/spring-integration-jms.xsd
+							http://www.springframework.org/schema/integration/kafka ./xsd/spring-integration-kafka.xsd
+							http://www.springframework.org/schema/task https://www.springframework.org/schema/task/spring-task.xsd"
+            >
+         
+        <bean  id = "sftpClientFactory" 
+    		class = "org.springframework.integration.sftp.session.DefaultSftpSessionFactory" > 
+    		<property  name = "host"  value = "${server.host}" /> 
+    		<property  name = "port"  value = "22" /> 
+    		<property  name = "user"  value = "aml-ms" /> 
+    		<property  name = "password"  value = "Opexia243" />
+    		<property  name = "allowUnknownKeys" value="true" />
+		</bean>   
+		
+		<bean id="cachingSessionFactory" class="org.springframework.integration.file.remote.session.CachingSessionFactory">
+			<constructor-arg ref="sftpClientFactory"/>
+		</bean>
+		
+		
+		<int:channel id="httprequestChannel" ><int:queue  capacity="5"/></int:channel>
+		
+		<int:channel id="sftprequestChannel" />
+		
+		<int:channel id="filerequestChannel" />	
+		
+		<int:channel id="filehandleChannel"/>
+		
+		<int:channel id="fileCryptedChannel" />
+		
+		<int:channel id="notifiedReportChannel"  />
+			
+	
+		
+		<int:poller  id="defaultPoller" fixed-rate="5000" default="true" task-executor="executorDefault"/>
+		<task:executor id="executorDefault" pool-size="10"/>
+		
+		<!-- SFTP POLLER -->
+		<int-sftp:inbound-channel-adapter id="sftpAdapter" delete-remote-files="true"  
+        	session-factory="cachingSessionFactory" temporary-file-suffix="TransferState" 
+        	channel="sftprequestChannel" 
+        	remote-directory="/"
+        	local-directory="c:/tmp/"
+        	auto-create-local-directory="true" 
+        	filename-pattern="*.json">
+			<int:poller fixed-rate="1000"></int:poller>
+		</int-sftp:inbound-channel-adapter>
+			<int:service-activator input-channel="sftprequestChannel" ref="lastActivator" method="finish"/>
+
+		<!--  FILE POLLER -->
+		<int-file:inbound-channel-adapter id="filesAdapter" channel="filerequestChannel" prevent-duplicates="false"
+	                              directory="c:/tmp/" filename-pattern="*.json" >
+	    	<int:poller id="poller" fixed-delay="5000" />
+		</int-file:inbound-channel-adapter>
+
+
+		<!-- ORGINAL FILE CHANNEL REQUEST : #1 FILTER AND IF OK GENERATE REPORT PROCESS -->
+		<int:chain input-channel="filerequestChannel" output-channel="filehandleChannel" >		   
+			 
+		    <int:filter id="filterfileIn" ref="fileReceiverFilter" throw-exception-on-rejection="false"/>	
+		    <int:transformer  method="generateReportProcess" ref="fileReceiver"  />				
+		   						
+		</int:chain>
+
+		<!--  FILE HANDLE CHANNEL REQUEST : #2 ENCRYPT REPORT PROCESS -->
+		<int:chain input-channel="filehandleChannel" output-channel="fileCryptedChannel" >	
+			
+  			<int:transformer id="transCryptor" ref="fileEncryptor" method="signCompressEncryptReportFile"/> 
+			
+		</int:chain>
+		
+		
+		<!-- HTTP REQUEST CHANNEL :  #3 PREPARE MESSAGE TO NOTIFY CSSF -->
+		<int:chain input-channel="fileCryptedChannel" output-channel="httprequestChannel" >
+			
+			<int:transformer  method="prepareMessageToCssf" ref="prepareMessageToCssf"  />
+		</int:chain>
+		
+		
+		<!-- HTTP REQUEST CHANNEL : #4 CALL API CSSF -->		
+		<int-http:outbound-gateway request-channel="httprequestChannel" id="post.cssf.outbound.gateway"   
+				url="http://localhost:${server.port}/accounts-safe-registry/notification-api/v1/notify"
+				http-method="POST" 
+				reply-channel="notifiedReportChannel"  
+				mapped-request-headers="fileid,nonce" 
+				>
+	
+	    </int-http:outbound-gateway>
+	    	  		     	    
+   	   	     	
+	    <int:channel id="endChannel"/>
+	    	<int:service-activator input-channel="notifiedReportChannel" ref="lastActivator" method="finish" requires-reply="false" />
+		 
+		 
+		 <!-- ERROR CHANNEL  -->		
+		<int:channel id="errorChannel">
+  			<int:queue capacity="500"/>
+		</int:channel>
+			<int:service-activator input-channel="errorChannel" ref="errorActivator" method="detectError"/>
+		
+		
+		<!-- JPA ADAPTATEUR -->
+		
+		<int:channel id="createReportProcess"/>
+		<int:channel id="searchExistantReport"/>
+		
+		<int:gateway id="reportProcessService" service-interface="com.bil.aml.core.services.ReportProcessService"
+		default-request-timeout="5000" default-reply-timeout="5000" >
+			<int:method name="generateReportProcess" request-channel="createReportProcess"/>
+			<int:method name="searchExistantReport" request-channel="searchExistantReport" />
+		</int:gateway>
+		
+		<!-- OUTBOUND -->	
+		<int-jpa:retrieving-outbound-gateway entity-manager-factory="entityManagerFactory" 
+			request-channel="searchExistantReport"
+			jpa-query="select count(r) from AmlReportProcess r where  r.reportPath = :reportPath">
+			<int-jpa:parameter name="reportPath" expression="payload.toString()"/>
+		</int-jpa:retrieving-outbound-gateway>
+		
+		 
+		<int-jpa:updating-outbound-gateway entity-manager-factory="entityManagerFactory" 
+			request-channel="createReportProcess" >
+			<int-jpa:transactional transaction-manager="transactionManager" propagation="REQUIRES_NEW" />
+		</int-jpa:updating-outbound-gateway>
+		
+				
+		<!-- INBOUND -->
+		
+		<int:channel id="jpaControlRequestChannel"/>
+		<int:channel id="jpaControlRequestChannelLocked"/>
+		
+		<int-jpa:inbound-channel-adapter 
+			channel="jpaControlRequestChannel" auto-startup="true" 
+			entity-manager-factory="entityManagerFactory"	
+			jpa-query="select r from AmlReportProcess r where r.cssfTimeDownload is null and r.error is null and r.locked is null and r.invalid is null">
+				 <int:poller fixed-rate="60000"/> 							
+		</int-jpa:inbound-channel-adapter>
+		
+		
+		<int:chain input-channel="jpaControlRequestChannel" output-channel="jpaControlRequestChannelLocked" >
+			<int:transformer id="locker" ref="lockReportProcess" method="lockReportProcess"/> 
+		</int:chain>
+		<int:service-activator input-channel="jpaControlRequestChannelLocked" ref="relaunchCssfNotificationActivator" method="loadMessage" requires-reply="false" />
+		
+		
+		
+	<!-- JMS ADAPTATEUR -->
+	<bean id="activeMQsConnectionFactory" class="org.apache.activemq.ActiveMQConnectionFactory">
+		
+		<property name="brokerURL" value="tcp://localhost:61616"/>
+	
+	</bean>
+	
+	<bean id="requestQueue" class="org.apache.activemq.command.ActiveMQQueue">
+		<constructor-arg value="java2blog.queue"/>
+	</bean>
+
+	<bean id="requestTopic" class="org.apache.activemq.command.ActiveMQTopic">
+		<constructor-arg value="topic.demo"/>
+	</bean>
+
+	<bean id="replyQueue" class="org.apache.activemq.command.ActiveMQQueue">
+		<constructor-arg value="queue.reply"/>
+	</bean>
+
+	<int:channel id="stdjmsoutchannel"/>
+		<int:service-activator input-channel="stdjmsoutchannel" ref="jmsActivator" method="handle" requires-reply="false" />
+	
+ 
+	<int-jms:inbound-channel-adapter connection-factory="activeMQsConnectionFactory" channel="inputToKafka" destination="requestQueue" >
+		<int:poller fixed-rate="1" task-executor="executor"/>
+	</int-jms:inbound-channel-adapter>
+	
+	<task:executor id="executor" pool-size="10"/>
+			
+	<!-- KAFKA ADAPTATEUR -->
+	<int:channel id="inputToKafka"/>
+	<bean  id = "template"  class = "org.springframework.kafka.core.KafkaTemplate" > 
+	    <constructor-arg> 
+	        <bean  class = "org.springframework.kafka.core.DefaultKafkaProducerFactory" > 
+	            <constructor-arg> 
+	                <map> 
+	                    <entry  key = "bootstrap.servers"  value = "192.168.141.39:9092" /> 
+	                    <entry  key = "key.serializer"  value = "org.apache.kafka.common.serialization.StringSerializer" /> 
+	                    <entry  key = "value.serializer"  value = "org.apache.kafka.common.serialization.StringSerializer" /> 
+	                  </map> 
+	            </constructor-arg> 
+	        </bean> 
+	    </constructor-arg> 
+	</bean>
+	
+	<int-kafka:outbound-channel-adapter kafka-template="template" 
+										channel="inputToKafka"
+										sync="true"
+										topic="customer"
+										message-key="customer"/>
+																					
+	 	
+	<bean id="consumerContainer" class="org.springframework.kafka.listener.KafkaMessageListenerContainer">
+		<constructor-arg>
+			<bean class="org.springframework.kafka.core.DefaultKafkaConsumerFactory">
+				<constructor-arg>
+					<map>
+						 <entry key = "bootstrap.servers"  value = "192.168.141.39:9092" />
+						 <entry key = "key.deserializer"  value = "org.apache.kafka.common.serialization.StringDeserializer" /> 
+	                     <entry key = "value.deserializer"  value = "org.apache.kafka.common.serialization.StringDeserializer" />
+	                     <entry key = "group.id" value = "customer"/> 
+					</map>
+				</constructor-arg>
+			</bean>
+		</constructor-arg>
+		<constructor-arg>
+			<bean class="org.springframework.kafka.listener.ContainerProperties">
+				<constructor-arg name="topics" value="customer"/>
+			</bean>
+		</constructor-arg>		
+	</bean>
+	
+	<int:channel id="outputFromKafka"/>
+		<int:service-activator input-channel="outputFromKafka" ref="kafkaConsumerEvent" method="consumeEvent"/>
+
+		
+	<int-kafka:message-driven-channel-adapter 
+		auto-startup="true"
+		listener-container="consumerContainer"
+		channel="outputFromKafka"
+		/>
+		
+		  
+	 
+</beans>
+---
