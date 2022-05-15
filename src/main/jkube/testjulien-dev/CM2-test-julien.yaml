@@ -7,34 +7,4 @@ metadata:
     app: testjulien
 data:
   aml-integration-context.xml: >-
-    <?xml version="1.0" encoding="UTF-8"?>
-<beans xmlns="http://www.springframework.org/schema/beans"
-       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-       xmlns:context="http://www.springframework.org/schema/context"
-       xmlns:int="http://www.springframework.org/schema/integration"
-       xmlns:int-sftp="http://www.springframework.org/schema/integration/sftp"
-       xmlns:int-file="http://www.springframework.org/schema/integration/file"
-       xmlns:int-jpa="http://www.springframework.org/schema/integration/jpa"
-       xmlns:int-http="http://www.springframework.org/schema/integration/http"
-       xmlns:util="http://www.springframework.org/schema/util"
-       xmlns:jdbc="http://www.springframework.org/schema/jdbc"
-       xmlns:tx="http://www.springframework.org/schema/tx"
-       xmlns:int-jms="http://www.springframework.org/schema/integration/jms"
-       xmlns:int-kafka="http://www.springframework.org/schema/integration/kafka"
-       xmlns:task="http://www.springframework.org/schema/task"
-       xsi:schemaLocation=" http://www.springframework.org/schema/beans ./xsd/spring-beans.xsd
-				            http://www.springframework.org/schema/context ./xsd/spring-context.xsd
-				            http://www.springframework.org/schema/integration ./xsd/spring-integration.xsd
-				            http://www.springframework.org/schema/integration/sftp ./xsd/spring-integration-sftp-2.0.xsd
-				            http://www.springframework.org/schema/integration/jpa ./xsd/spring-integration-jpa.xsd
-				            http://www.springframework.org/schema/integration/file ./xsd/spring-integration-file.xsd
-				            http://www.springframework.org/schema/integration/http ./xsd/spring-integration-http.xsd
-							http://www.springframework.org/schema/util ./xsd/spring-util.xsd
-							http://www.springframework.org/schema/integration/jms ./xsd/spring-integration-jms.xsd
-							http://www.springframework.org/schema/integration/kafka ./xsd/spring-integration-kafka.xsd
-							http://www.springframework.org/schema/task https://www.springframework.org/schema/task/spring-task.xsd"
-            >
-         
-
-	 
-</beans>
+   test
